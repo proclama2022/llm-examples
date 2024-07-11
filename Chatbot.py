@@ -1,16 +1,24 @@
 from openai import OpenAI
 import streamlit as st
+import requests
+import json
+
+url = 'http://143.198.98.88/v1/workflows/run'
+api_key = 'app-Sf1R3YdJez2Um2pxGNf7T8KZ'
+
+headers = {
+    'Authorization': f'Bearer {api_key}',
+    'Content-Type': 'application/json'
+}
 
 with st.sidebar:
     openai_api_key = st.text_input("OpenAI API Key", key="chatbot_api_key", type="password")
-    "[Get an OpenAI API key](https://platform.openai.com/account/api-keys)"
-    "[View the source code](https://github.com/streamlit/llm-examples/blob/main/Chatbot.py)"
-    "[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/streamlit/llm-examples?quickstart=1)"
+    "[Ottieni una chiave API OpenAI](https://platform.openai.com/account/api-keys)"
 
-st.title("💬 Chatbot")
-st.caption("🚀 A Streamlit chatbot powered by OpenAI")
+st.title("💬 Guida al Business Plan")
+st.caption("🚀 A Streamlit chatbot powered by Umberto Past President")
 if "messages" not in st.session_state:
-    st.session_state["messages"] = [{"role": "assistant", "content": "How can I help you?"}]
+    st.session_state["messages"] = [{"role": "assistant", "content": "Sono un assistente addestrato sulla Guida al Business Plan dell'ODCEC di Milano. Come posso aiutarti?"}]
 
 for msg in st.session_state.messages:
     st.chat_message(msg["role"]).write(msg["content"])
@@ -21,9 +29,28 @@ if prompt := st.chat_input():
         st.stop()
 
     client = OpenAI(api_key=openai_api_key)
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    data = {
+        'inputs': {'question': prompt},
+        'response_mode': 'blocking',
+        'user': 'Streamlit'
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    embeddings = response.json()["data"]["outputs"]["response"]
+
+    filtered_embeddings = []
+    for emb in embeddings:
+        if emb["metadata"]['score'] > 0.8:
+            filtered_embeddings.append(emb)
+
+    if filtered_embeddings:
+        prompt_with_embeddings = prompt + "\n Contesto:" + json.dumps(filtered_embeddings)
+    else:
+        prompt_with_embeddings = None
+
+    st.session_state.messages.append({"role": "user", "content": prompt_with_embeddings if filtered_embeddings else prompt})
     st.chat_message("user").write(prompt)
-    response = client.chat.completions.create(model="gpt-3.5-turbo", messages=st.session_state.messages)
+    response = client.chat.completions.create(model="gpt-4o", messages=st.session_state.messages)
     msg = response.choices[0].message.content
     st.session_state.messages.append({"role": "assistant", "content": msg})
     st.chat_message("assistant").write(msg)
